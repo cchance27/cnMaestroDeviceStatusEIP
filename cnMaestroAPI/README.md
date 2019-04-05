@@ -1,0 +1,34 @@
+﻿This WebAPI is for use with EngageIP
+
+Copy the .dll to the bin/ directory of the AdminPortal
+
+
+
+Add the following to <appSettings> in web.config
+	Url must be accessible from EngageIP server specifically.
+	Api ClientID and Secret can be generated in EngageIP
+
+<add key="cnMaestroApiUrl" value = "https://cambium.caribserve.net/api/v1" /> 
+<add key="cnMaestroClientID" value = "5OSM8CJ01BC41pzc" />
+<add key="cnMaestroClientSecret" value = "tz09ek0OHnROR5Mompst0mrmK6fJI9" />
+
+
+Add the following to enable the handler
+
+	<system.web>
+		<httpHandlers>
+			<add verb="GET" path="*.cnmaestro" type="cnMaestro.cnProxy, cnMaestroAPI" />
+		</httpHandlers>
+	</system.web>
+
+Make sure the scriptProcessor is correct, it should be same as the one used for Monorail by engageIP
+
+	<system.webServer>
+		<handlers>
+            <add name="cnMaestro" path="*.cnmaestro" verb="GET" modules="IsapiModule" scriptProcessor="C:\Windows\Microsoft.NET\Framework64\v2.0.50727\aspnet_isapi.dll" resourceType="Unspecified" requireAccess="Script" />
+		</handlers>
+	</system.webServer>
+
+
+Once Completed you should now be able to make calls to :
+	https://engageip/adminportal/0a-00-e3-00-00-00.cnmaestro
