@@ -86,8 +86,15 @@ namespace cnMaestro
                     using (StreamReader r = new StreamReader(e.Response.GetResponseStream()))
                     {
                         errorBody = r.ReadToEnd();
+                        if (errorBody.Contains("invalid_token"))
+                        {
+                            // We're just expired so we got a 401, let's grab a new token.
+                            GetNewBearer();
+                        } else
+                        {
+                            throw new WebException("cnMaestro CheckBearer Failed:" + errorBody, e);
+                        }
                     }
-                    throw new WebException("cnMaestro CheckBearer Failed:" + errorBody, e);
                 }
             }
 
@@ -115,7 +122,7 @@ namespace cnMaestro
                 macFromPath = macFromPath.Substring(macFromPath.LastIndexOf("/") + 1);
 
             // Check for valid mac if not we send back a json error, similar format to the not found response from api.
-            Regex regex = new Regex(@"^(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$|^(?:[0-9a-fA-F]{2}-){5}[0-9a-fA-F]{2}$");
+            Regex regex = new Regex(@"^(?:[0-9a-fA-F]{2}-){5}[0-9a-fA-F]{2}$");
             if (regex.Match(macFromPath).Success)
             {
 

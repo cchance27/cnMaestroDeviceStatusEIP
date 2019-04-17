@@ -1,17 +1,14 @@
-﻿This WebAPI is for use with EngageIP
+﻿This WebAPI is for use with EngageIP to allow for Device Status to be shown in the EngageIP Admin Portal.
 
 Copy the .dll to the bin/ directory of the AdminPortal
-
-
 
 Add the following to <appSettings> in web.config
 	Url must be accessible from EngageIP server specifically.
 	Api ClientID and Secret can be generated in EngageIP
 
-<add key="cnMaestroApiUrl" value = "https://cambium.caribserve.net/api/v1" /> 
-<add key="cnMaestroClientID" value = "5OSM8CJ01BC41pzc" />
-<add key="cnMaestroClientSecret" value = "tz09ek0OHnROR5Mompst0mrmK6fJI9" />
-
+<add key="cnMaestroApiUrl" value = "https://cnmaestro/api/v1" /> 
+<add key="cnMaestroClientID" value = "from-cnmaestro-interface" />
+<add key="cnMaestroClientSecret" value = "from-cnmaestro-interface" />
 
 Add the following to enable the handler
 

@@ -47,6 +47,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <Content Include="Page Extension.js" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />
