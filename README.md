@@ -1,6 +1,6 @@
-﻿This WebAPI is for use with EngageIP to allow for Device Status to be shown in the EngageIP Admin Portal.
+This WebAPI is for use with EngageIP to allow for Device Status to be shown in the EngageIP Admin Portal.
 
-![Example of Usage](sample cnMaestro Integration v1.PNG)
+![Example of Usage](https://raw.githubusercontent.com/cchance27/cnMaestroEIP/master/sample%20cnMaestro%20Integration%20v1.PNG)
 
 Copy the .dll to the bin/ directory of the AdminPortal
 
