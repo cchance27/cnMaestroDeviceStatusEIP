@@ -17,7 +17,7 @@ namespace cnMaestro
         private static string _apiBaseAddress = ConfigurationManager.AppSettings["cnMaestroApiUrl"];
         private static string _cnMaestroClientID = ConfigurationManager.AppSettings["cnMaestroClientID"];
         private static string _cnMaestroClientSecret = ConfigurationManager.AppSettings["cnMaestroClientSecret"];
-        private static string _proxyPath = ".cnmaestro";
+        private static string _proxyPath = ".cnApi";
         private static string _cnMaestroBearer = "";
 
         public API()
