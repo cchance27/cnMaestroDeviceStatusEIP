@@ -7,28 +7,31 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
+using System.Web.SessionState;
 using Newtonsoft.Json;
 
 namespace cnMaestro
 {
-    public class cnProxy : IHttpHandler
+    public class API : IHttpHandler, IRequiresSessionState
     {
         private static string _apiBaseAddress = ConfigurationManager.AppSettings["cnMaestroApiUrl"];
         private static string _cnMaestroClientID = ConfigurationManager.AppSettings["cnMaestroClientID"];
         private static string _cnMaestroClientSecret = ConfigurationManager.AppSettings["cnMaestroClientSecret"];
-        private static string _cnMaestroBearer = ConfigurationManager.AppSettings["cnMaestroBearer"];
         private static string _proxyPath = ".cnmaestro";
+        private static string _cnMaestroBearer = "";
 
-        public cnProxy()
+        public API()
         {
             if (String.IsNullOrEmpty(_cnMaestroClientSecret) || String.IsNullOrEmpty(_cnMaestroClientSecret) || String.IsNullOrEmpty(_apiBaseAddress))
                 throw new ArgumentNullException("You must provide  cnMaestroClientID, cnMaestroClientSecret, cnMaestroApiUrl.");
 
+            
             // We don't have a bearer so let's login
             if (String.IsNullOrEmpty(_cnMaestroBearer))
             {
                 GetNewBearer();
-            } else
+            } 
+            else
             {
                 CheckBearer();
             }
@@ -110,63 +113,89 @@ namespace cnMaestro
 
         public void ProcessRequest(HttpContext context)
         {
-            string response = null;
-            if (String.IsNullOrEmpty(_cnMaestroClientSecret) || String.IsNullOrEmpty(_cnMaestroClientSecret) || String.IsNullOrEmpty(_cnMaestroBearer) || String.IsNullOrEmpty(_apiBaseAddress))
-                throw new WebException("cnMaestro: Request Process setup failed.");
+            eipResponse response;
+            if (context is null || context.Session is null)
+            {
+                throw new ArgumentNullException(nameof(context), "The context or session was empty!");
+            }
+#if !DEBUG // We will ignore UserID EIP Login Check if we're in debug build.
+            if (context.Session["UserID"] is null)
+            {
+                throw new UnauthorizedAccessException("You must be logged into EngageIP to use the cnMaestroAPI Endpoint.");
+            }
+#endif
 
-            // Make sure we still have a valid bearer refresh if needed.
-            CheckBearer();
-
-            var macFromPath = context.Request.Url.PathAndQuery.ToLower().Replace(_proxyPath.ToLower(), "");
-            if (macFromPath.Contains("/"))
-                macFromPath = macFromPath.Substring(macFromPath.LastIndexOf("/") + 1);
+            string macFromPath = context.Request.Url.Segments[context.Request.Url.Segments.Length - 1].ToLower().Replace(_proxyPath.ToLower(), "");
 
             // Check for valid mac if not we send back a json error, similar format to the not found response from api.
             Regex regex = new Regex(@"^(?:[0-9a-fA-F]{2}-){5}[0-9a-fA-F]{2}$");
             if (regex.Match(macFromPath).Success)
             {
-
                 if (context.Request.RequestType.ToUpper() == "GET")
                 {
-                    // We're not handling posts only get requests for the Cambium
-                    response = GetDevice(macFromPath);
+                    // Our request was a valid mac address format, and a get request so we can serve it.
+                    response = GetDevice(macFromPath, true);
                 }
                 else
                 {
+                    // We don't handle anything except get requests
                     throw new NotImplementedException();
                 }
             } else
             {
-                response = "{\"error\": { \"level\": \"error\", \"cause\": \"Invalid MAC\", \"message\": \"Mac Address is Invalid Format\"} }";
+                // Invalid Mac Format
+                throw new ArgumentOutOfRangeException(nameof(macFromPath));
             }
             context.Response.ContentType = "application/json";
-            context.Response.Write(response);
+            context.Response.Write(JsonConvert.SerializeObject(response));
         }
 
-        public string GetDevice(string mac)
+        public eipResponse GetDevice(string mac, bool allowRetry = true)
         {
-            using (var client = new WebClient())
+            var client = new WebClient();
+            try
             {
-                try
-                {
-                    client.Headers.Add(HttpRequestHeader.Authorization, "Bearer " + _cnMaestroBearer);
-                    var response = client.DownloadString(_apiBaseAddress + "/devices/" + mac);
-                    return response;
-                }
-                catch (WebException e)
-                {
-                    string errorBody = null;
-                    using (StreamReader r = new StreamReader(e.Response.GetResponseStream()))
-                    {
-                        errorBody = r.ReadToEnd();
-                    }
+                client.Headers.Add(HttpRequestHeader.Authorization, "Bearer " + _cnMaestroBearer);
+                var response = "";
 
-                    // if it's not a 404 throw the error, if it's a 404 let's just return the JSON error
-                    if (((HttpWebResponse)e.Response).StatusCode != HttpStatusCode.NotFound)
-                        throw new WebException("cnMaestro GetDevice(" + mac + ") Failed:" + errorBody, e);
+                response = client.DownloadString($"{_apiBaseAddress}/devices/{mac}?fields=product%2Ctower%2Cname%2Csoftware_version%2Cstatus%2Cstatus_time%2Cip");
+                apiResponse<apiDevice> device = JsonConvert.DeserializeObject<apiResponse<apiDevice>>(response);
 
-                    return errorBody;
+                response = client.DownloadString($"{_apiBaseAddress}/devices/{mac}/statistics?fields=radio.dl_snr_v%2Cradio.dl_snr_h%2Cradio.ul_snr_v%2Cradio.ul_snr_h%2Cradio.ul_rssi%2Cradio.dl_rssi%2Cradio.dl_modulation%2Cradio.ul_modulation%2Cradio.ul_lqi%2Cradio.dl_lqi");
+                apiResponse<apiStatistics> statistics = JsonConvert.DeserializeObject<apiResponse<apiStatistics>>(response);
+
+                return new eipResponse() { device = device.data[0], statistics = statistics.data[0].radio };
+            }
+            catch (WebException e)
+            {
+                string errorBody = null;
+                using (StreamReader r = new StreamReader(e.Response.GetResponseStream()))
+                {
+                    errorBody = r.ReadToEnd();
                 }
+
+                if (!errorBody.Contains("invalid_token"))
+                {
+                    // We got something besides an invalid token we can't handle so just fail.
+                    throw new WebException("cnMaestro GetDevice(" + mac + ") Failed:" + errorBody, e);
+                }
+            }
+            finally
+            {
+                client.Dispose();
+            }
+
+            // If we reach here, we didn't succeed, and we got an error with invalid_token in the body
+            if (allowRetry)
+            {
+                // We're set to allow retries, so let's try again, but we won't allow a retry this next time.
+                var response = GetDevice(mac, false);
+                return response;
+            }
+            else
+            {
+                // We're not allowed to retry, throw an exception.
+                throw new WebException("cnMaestro Invalid Token, and we can't retry further.");
             }
         }
     }
