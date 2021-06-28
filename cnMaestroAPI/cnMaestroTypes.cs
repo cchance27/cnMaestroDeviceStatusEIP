@@ -1,4 +1,5 @@
 ﻿using System;
+
 namespace cnMaestro
 {
     public struct eipResponse

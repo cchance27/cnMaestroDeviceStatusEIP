@@ -78,7 +78,7 @@ namespace cnMaestro
                     var response = client.DownloadString(_apiBaseAddress + "/access/validate_token");
 
                     Dictionary<string, string> tokenEndpointDecoded = JsonConvert.DeserializeObject<Dictionary<string, string>>(response);
-
+                    //TODO: add some logic here to automatically check if we're expired if so then we grab a token before trying requests.
                     var expires = tokenEndpointDecoded["expires_in"];
                     if (String.IsNullOrEmpty(expires))
                         GetNewBearer();
@@ -89,7 +89,7 @@ namespace cnMaestro
                     using (StreamReader r = new StreamReader(e.Response.GetResponseStream()))
                     {
                         errorBody = r.ReadToEnd();
-                        if (errorBody.Contains("invalid_token"))
+                        if (errorBody.Contains("invalid_client"))
                         {
                             // We're just expired so we got a 401, let's grab a new token.
                             GetNewBearer();
@@ -118,7 +118,9 @@ namespace cnMaestro
             {
                 throw new ArgumentNullException(nameof(context), "The context or session was empty!");
             }
-#if !DEBUG // We will ignore UserID EIP Login Check if we're in debug build.
+
+#if !DEBUG 
+            // We will ignore UserID EIP Login Check if we're in debug build.
             if (context.Session["UserID"] is null)
             {
                 throw new UnauthorizedAccessException("You must be logged into EngageIP to use the cnMaestroAPI Endpoint.");
@@ -174,7 +176,7 @@ namespace cnMaestro
                     errorBody = r.ReadToEnd();
                 }
 
-                if (!errorBody.Contains("invalid_token"))
+                if (!errorBody.Contains("invalid_client"))
                 {
                     // We got something besides an invalid token we can't handle so just fail.
                     throw new WebException("cnMaestro GetDevice(" + mac + ") Failed:" + errorBody, e);
@@ -188,6 +190,7 @@ namespace cnMaestro
             // If we reach here, we didn't succeed, and we got an error with invalid_token in the body
             if (allowRetry)
             {
+                CheckBearer();
                 // We're set to allow retries, so let's try again, but we won't allow a retry this next time.
                 var response = GetDevice(mac, false);
                 return response;
